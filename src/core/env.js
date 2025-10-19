@@ -79,6 +79,12 @@ const defaults = new Map(
       type: "boolean",
       default: false,
     },
+    // if true, do not validate the SNI field in TLS handshake
+    // effectively allowing clients to "fake" SNI
+    TLS_ALLOW_ANY_SNI: {
+      type: "boolean",
+      default: false,
+    },
     // global log level (debug, info, warn, error)
     LOG_LEVEL: {
       type: "string",
@@ -154,7 +160,7 @@ const defaults = new Map(
     // auto renew blocklists if they are older than these many weeks
     AUTO_RENEW_BLOCKLISTS_OLDER_THAN: {
       type: "number",
-      default: -1, // in weeks; negative or 0 means, never auto-renew
+      default: 42, // in weeks; negative or 0 means, never auto-renew
     },
     // courtesy db-ip.com/db/download/ip-to-country-lite
     GEOIP_URL: {
@@ -336,6 +342,16 @@ export default class EnvManager {
     return null;
   }
 
+  // most relevant host id for this env
+  mostRelevantHostId(cloud) {
+    if (cloud === "local") return "localhost";
+    if (cloud === "fly") return this.get("FLY_MACHINE_ID") || "";
+    if (cloud === "deno-deploy") {
+      return this.get("DENO_REGION") + ":" + this.get("DENO_DEPLOYMENT_ID");
+    }
+    return "";
+  }
+
   /**
    * Makes default env values.
    * @return {Map} Runtime environment defaults.
@@ -357,7 +373,9 @@ export default class EnvManager {
       env.set(key, caststr(val, type));
     }
 
-    env.set("CLOUD_PLATFORM", this.mostLikelyCloudPlatform());
+    const cloud = this.mostLikelyCloudPlatform();
+    env.set("CLOUD_PLATFORM", cloud);
+    env.set("HOST_IDENTIFIER", this.mostRelevantHostId(cloud)); // may be empty
 
     return env;
   }
